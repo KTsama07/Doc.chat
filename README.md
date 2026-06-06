@@ -25,21 +25,29 @@ This repository contains `Doc_Chat.ipynb`, a Colab-first prototype for querying 
 
 ## 2. Architecture diagram
 
+Reference HLD:
+
+![Doc.Chat HLD](https://github.com/user-attachments/assets/f7d5ded1-ae94-4332-99ec-5f4adc1f23c9)
+
 ```mermaid
-flowchart LR
-    U[User Browser UI] -->|POST /api/query| API[FastAPI Service]
-    U -->|GET /api/audit| API
-    U -->|GET /api/dataset/info| API
-
-    API --> ORCH[Orchestrator]
-    ORCH --> LLM[Gemini Structured LLM]
-    ORCH --> SQLV[SQL Validator]
-    SQLV --> DDB[DuckDB on CSV Dataset]
-    ORCH --> SUM[Gemini Summary LLM]
-    ORCH --> CHART[Plotly Chart Engine]
-    ORCH --> AUDIT[(SQLite Audit DB)]
-
-    API -->|JSON + chart payload| U
+flowchart TB
+    U((User)) -->|1. Plain English Question| UI[Gradio UI Interface]
+    UI -->|2. Forward Request| ORCH[Python Orchestrator]
+    ORCH -->|3. Intent Routing| SCOPE{LLM: Scope & Intent Check}
+    SCOPE -->|4a. Out of Scope| REF[Graceful Refusal State]
+    REF -->|Return Text| UI
+    SCOPE -->|4b. In Scope| EXTRACT[LLM: Extract to JSON Schema]
+    EXTRACT -->|5. JSON Payload| PARSE[Backend: Parse JSON to SQL]
+    PARSE -->|6. SQL Query| DDB[(DuckDB Engine)]
+    DDB -->|8. Execute SELECT| CSV[(MORTH CSV Dataset)]
+    DDB -->|9. Raw Result Set| ORCH
+    ORCH -->|10. Feed Raw Data| SUM[LLM: Natural Language Summary]
+    ORCH -->|11. Feed Raw Data| PLOT[Plotly: Generate Chart]
+    PARSE -.->|7. Log SQL String| AUDIT[Audit Trail / Provenance]
+    SUM --> RESP[Response Assembly]
+    PLOT --> RESP
+    AUDIT -.->|Append Provenance| RESP
+    RESP -->|12. Final Payload| UI
 ```
 
 ---
@@ -49,36 +57,37 @@ flowchart LR
 ```mermaid
 sequenceDiagram
     participant User as User
-    participant UI as Frontend
-    participant API as FastAPI /api/query
-    participant O as orchestrate()
-    participant LLM as Gemini (structured)
-    participant SQL as SQL Validator + DuckDB
-    participant SUM as Gemini (summary)
-    participant A as Audit DB
+    participant UI as Gradio UI Interface
+    participant O as Python Orchestrator
+    participant IC as LLM Scope/Intent Check
+    participant JE as LLM JSON Extractor
+    participant B as Backend SQL Parser
+    participant DB as DuckDB + MORTH CSV
+    participant S as LLM Summary
+    participant P as Plotly
+    participant A as Audit Trail
+    participant R as Response Assembly
 
-    User->>UI: Enter question
-    UI->>API: POST question
-    API->>O: orchestrate(question)
-    O->>LLM: Build prompt + request QueryParameters
-    LLM-->>O: is_in_scope, confidence, sql_query, chart metadata
+    User->>UI: 1. Plain English Question
+    UI->>O: 2. Forward Request
+    O->>IC: 3. Intent Routing
 
-    alt out of scope
-        O->>A: log REFUSED
-        O-->>API: refusal response
-    else low confidence
-        O->>A: log FLAGGED
-        O-->>API: human-intervention message + SQL
-    else valid
-        O->>SQL: validate_sql(sql_query)
-        SQL->>SQL: execute_query() on CSV
-        SQL-->>O: dataframe
-        O->>SUM: generate summary from dataframe
-        SUM-->>O: natural-language answer
-        O->>A: log SUCCESS
-        O-->>API: answer + sql + chart + table data
+    alt 4a. Out of Scope
+        IC-->>UI: Graceful refusal text
+    else 4b. In Scope
+        IC->>JE: Route in-scope query
+        JE->>B: 5. JSON Payload
+        B->>DB: 6. SQL Query
+        B-->>A: 7. Log SQL String
+        DB->>DB: 8. Execute SELECT
+        DB-->>O: 9. Raw Result Set
+        O->>S: 10. Feed Raw Data
+        O->>P: 11. Feed Raw Data
+        S-->>R: Summary output
+        P-->>R: Chart output
+        A-->>R: Append provenance
+        R-->>UI: 12. Final Payload
     end
 
-    API-->>UI: JSON response
-    UI-->>User: Answer, SQL, chart, table
+    UI-->>User: Return response text + chart + provenance
 ```
