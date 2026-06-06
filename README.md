@@ -1,1 +1,0 @@
-# KTsama07.github.io
