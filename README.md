@@ -29,28 +29,7 @@ Reference HLD:
 
 ![Doc.Chat HLD](https://github.com/user-attachments/assets/f7d5ded1-ae94-4332-99ec-5f4adc1f23c9)
 
-```mermaid
-flowchart TB
-    U((User)) -->|1. Plain English Question| UI[Gradio UI Interface]
-    UI -->|2. Forward Request| ORCH[Python Orchestrator]
-    ORCH -->|3. Intent Routing| SCOPE{LLM: Scope & Intent Check}
-    SCOPE -->|4a. Out of Scope| REF[Graceful Refusal State]
-    REF -->|Return Text| UI
-    SCOPE -->|4b. In Scope| EXTRACT[LLM: Extract to JSON Schema]
-    EXTRACT -->|5. JSON Payload| PARSE[Backend: Parse JSON to SQL]
-    PARSE -->|6. SQL Query| DDB[(DuckDB Engine)]
-    DDB -->|8. Execute SELECT| CSV[(MORTH CSV Dataset)]
-    DDB -->|9. Raw Result Set| ORCH
-    ORCH -->|10. Feed Raw Data| SUM[LLM: Natural Language Summary]
-    ORCH -->|11. Feed Raw Data| PLOT[Plotly: Generate Chart]
-    PARSE -.->|7. Log SQL String| AUDIT[Audit Trail / Provenance]
-    SUM --> RESP[Response Assembly]
-    PLOT --> RESP
-    AUDIT -.->|Append Provenance| RESP
-    RESP -->|12. Final Payload| UI
-```
 
----
 
 ## 3. Query data flow and control flow diagram
 
